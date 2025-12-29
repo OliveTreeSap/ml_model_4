@@ -3,24 +3,17 @@ import pickle
 import os
 from sklearn.linear_model import LogisticRegression
 
-# CONFIGURATION
+# Configuration
 MODEL_SAVE_PATH = "models/ranker_weights.pkl"
 N_SAMPLES = 1000  # Number of random outfits to synthesize for training
 
 def generate_synthetic_outfit_features(n_samples):
     """
-    Step 1: DATA GENERATION
     Simulates the features of random outfits created from the closet.
-    
-    In a real production run with 10,000 images, you would:
-    1. Load real images.
-    2. Run feature_extraction.py on them.
-    3. Use those results here.
-    
-    For this project (Demo), we simulate the feature distribution using 
+    Simulate the feature distribution using 
     normal distributions to represent realistic wardrobe combinations.
     """
-    print(f"🔄 Synthesizing {n_samples} outfit combinations...")
+    print(f"Synthesizing {n_samples} outfit combinations")
     
     # Feature 1: Style Fit (0.0 - 1.0)
     # Most random combos won't match the target style perfectly, so mean is 0.5
@@ -46,39 +39,34 @@ def generate_synthetic_outfit_features(n_samples):
 
 def expert_labeling_teacher(features):
     """
-    Step 2: PSEUDO-LABELING (The Self-Supervised 'Teacher')
-    
-    This function represents the 'Expert Knowledge' injected into the system.
-    It automatically decides if an outfit is 'Good' or 'Bad' based on strict rules.
+    Perform pseudo labeling on an outfit based on strict rules.
     """
     style, coh, color, bal = features
     
-    # --- RULE SET ---
-    
-    # Rule A: The "Perfect Outfit" (Label 1)
+    # Case 1: The oufit is "perfect" (label 1)
     # Must be stylish AND coherent AND matching colors
     if style > 0.75 and coh > 0.65 and color > 0.6:
         return 1
     
-    # Rule B: The "Disaster Outfit" (Label 0)
+    # case 2: The outfit is "terrible" (label 0)
     # Fails if it misses the style badly OR colors clash horribly OR it's too messy
     elif style < 0.45 or color < 0.35 or bal < 0.3:
         return 0
         
-    # Rule C: Ambiguous Case (Label -1)
-    # If it's "okay but not great", we skip it to avoid confusing the model
+    # Case 3: The outfit is "neutral" (label -1)
+    # If it's "okay but not great", skip it to avoid confusing the model
     else:
         return -1
 
 def train_ranker():
-    # 1. Generate Data
+    # Generate Data
     X_raw = generate_synthetic_outfit_features(N_SAMPLES)
     
     X_train = []
     y_train = []
     
-    # 2. Apply Self-Supervision
-    print("🏷️  Teacher is labeling the random outfits...")
+    # Apply Self-Supervision
+    print("Teacher is labeling the random outfits...")
     count_good = 0
     count_bad = 0
     
@@ -93,20 +81,19 @@ def train_ranker():
     X_train = np.array(X_train)
     y_train = np.array(y_train)
     
-    print(f"   ✅ Data labeled. Good: {count_good}, Bad: {count_bad}, Total: {len(X_train)}")
+    print(f"Data labeled. Good: {count_good}, Bad: {count_bad}, Total: {len(X_train)}")
 
-    # 3. Train the Student Model (Logistic Regression)
-    # We set fit_intercept=False to force the model to learn raw feature weights
-    print("🧠 Training Student Model (Logistic Regression)...")
+    # Train the Student Model (Logistic Regression)
+    # Set fit_intercept=False to force the model to learn raw feature weights
+    print("Training Student Model (Logistic Regression)")
     clf = LogisticRegression(fit_intercept=False, solver='lbfgs')
     clf.fit(X_train, y_train)
     
-    # 4. Extract and Display Learned Weights
-    # These w values represent how important the model thinks each feature is
+    # Extract and Display Learned Weights
     weights = clf.coef_[0]
     
     print("\n" + "="*40)
-    print("🚀 SELF-SUPERVISED TRAINING COMPLETE")
+    print("   SELF-SUPERVISED TRAINING COMPLETE")
     print("   The model has learned that a good outfit depends on:")
     print(f"   1. Style Fit:      {weights[0]:.4f}")
     print(f"   2. Coherence:      {weights[1]:.4f}")
@@ -114,13 +101,12 @@ def train_ranker():
     print(f"   4. Visual Balance: {weights[3]:.4f}")
     print("="*40 + "\n")
     
-    # 5. Save the 'Brain' (Weights) to disk
+    # Save the weights to disk
     os.makedirs(os.path.dirname(MODEL_SAVE_PATH), exist_ok=True)
     with open(MODEL_SAVE_PATH, 'wb') as f:
         pickle.dump(weights, f)
         
-    print(f"💾 Trained weights saved to: {MODEL_SAVE_PATH}")
-    print("   (You can now run 'src/ml_modules/idea_4_ranking.py' to use these weights)")
+    print(f"Trained weights saved to: {MODEL_SAVE_PATH}")
 
 if __name__ == "__main__":
     train_ranker()

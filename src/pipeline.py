@@ -1,7 +1,10 @@
 import numpy as np
 import os
 import glob
-import random
+import sys
+
+# Adds the src to PATH
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Import our custom modules
 from src.utils.clip_engine import clip_engine
@@ -13,19 +16,18 @@ class Model4TestPipeline:
         Initializes the Test Pipeline for Model 4.
         Focuses purely on Wardrobe Loading + Ranking.
         """
-        print("🧪 Initializing Model 4 Test Pipeline...")
+        print("Initializing Model 4 Test Pipeline")
         
         # Ensure CLIP is loaded (Needed for Coherence check inside Ranker)
         if clip_engine is None:
             raise Exception("CRITICAL: CLIP Engine failed to load.")
             
         # Initialize the Ranker (Model 4)
-        # This loads the weights trained in 'train_ranker.py'
         self.ranker = OutfitRanker()
         
         # Load User's Wardrobe
         self.wardrobe = self._load_wardrobe_database()
-        print(f"✅ Ready. Loaded {len(self.wardrobe['top'])} tops, {len(self.wardrobe['bottom'])} bottoms, {len(self.wardrobe['shoes'])} shoes.")
+        print(f"Loaded {len(self.wardrobe['top'])} tops, {len(self.wardrobe['bottom'])} bottoms, {len(self.wardrobe['shoes'])} shoes.")
 
     def _load_wardrobe_database(self):
         """
@@ -38,10 +40,8 @@ class Model4TestPipeline:
             path = os.path.join(base_path, category, "*.jpg")
             files = glob.glob(path)
             
-            # --- MOCK DATA GENERATOR (For when you don't have real images yet) ---
+            # Test data generator
             if not files: 
-                # print(f"⚠️ No images found in {path}, creating mock items...")
-                # We generate mock items so you can run the code immediately
                 for i in range(3): # Create 3 mock items per category
                     wardrobe[category].append({
                         'id': f"mock_{category}_{i}",
@@ -49,10 +49,9 @@ class Model4TestPipeline:
                         'embedding': np.random.rand(512) # Fake embedding
                     })
                 continue
-            # ---------------------------------------------------------------------
 
             for file_path in files:
-                # In prod, load from .npy cache. Here we compute on fly.
+                # Perform embedding on the items
                 emb = clip_engine.get_image_embedding(file_path)
                 wardrobe[category].append({
                     'id': os.path.basename(file_path),
@@ -64,51 +63,47 @@ class Model4TestPipeline:
 
     def run_compatibility_test(self):
         """
-        EXECUTE MODEL 4 ONLY.
+        Execute Model 4
         1. Takes all user items.
         2. Generates combinations.
         3. Ranks them by Coherence, Color, and Balance.
         """
         print(f"\n⚡ Running Compatibility Test (Model 4 Only)...")
         
-        # 1. Get All Items (No Filtering by Style)
-        # We simply take everything in the closet
+        # Get All Items (No Filtering by Style)
         tops = self.wardrobe['top']
         bottoms = self.wardrobe['bottom']
         shoes = self.wardrobe['shoes']
         
         if not tops or not bottoms or not shoes:
-            print("❌ Error: Wardrobe is empty. Please add images to 'data/user/items/...'")
+            print("Error: Wardrobe is empty. Please add images to 'data/user/items/...'")
             return []
 
-        # 2. Rank Outfits (The Core of Model 4)
-        # We pass target_style_emb=None because we aren't trying to match a KOL here.
-        # We are only checking "Does this outfit look good together?"
+        # Rank Outfits
         ranked_outfits = self.ranker.rank_outfits(
             tops, 
             bottoms, 
             shoes, 
-            target_style_emb=None, # <--- Key change: No external style target
+            target_style_emb=None, # Currently no external style target (not trying to match KOL)
             top_k=10
         )
         
         return ranked_outfits
 
-# --- DEMO EXECUTION ---
+
 if __name__ == "__main__":
-    # 1. Start the test pipeline
+    # Start the test pipeline
     pipeline = Model4TestPipeline()
     
-    # 2. Run the ranker on the user's items
+    # Run the ranker on the user's items
     results = pipeline.run_compatibility_test()
     
-    # 3. Print Results
-    print(f"\n🏆 Top {len(results)} Compatible Outfits from User's Closet:")
+    # Print Results
+    print(f"\nTop {len(results)} Compatible Outfits from User's Closet:")
     for i, outfit in enumerate(results):
         print(f"\n#{i+1}: Total Score: {outfit['score']:.4f}")
         print(f"    Items: {outfit['items'][0]['id']} + {outfit['items'][1]['id']} + {outfit['items'][2]['id']}")
         print("    [Analysis]:")
-        # Note: Style fit will be 0.0 since we passed None
         print(f"      - Coherence (Vibe match):   {outfit['details']['coherence']:.2f}") 
         print(f"      - Color Harmony (HSV):      {outfit['details']['color']:.2f}")
         print(f"      - Visual Balance (Clutter): {outfit['details']['balance']:.2f}")

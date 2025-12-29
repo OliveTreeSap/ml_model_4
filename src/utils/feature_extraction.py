@@ -5,16 +5,15 @@ from scipy.spatial.distance import cosine
 
 """
 FEATURE EXTRACTION MODULE FOR OUTFIT RANKING
---------------------------------------------
+
 This module calculates the 3 key "human-like" metrics for an outfit:
 1. Coherence (Style Consistency) - using CLIP vectors
 2. Color Harmony (Color Theory) - using OpenCV & HSV
 3. Visual Balance (Complexity) - using Edge Density
 """
 
-# ==========================================
-# 1. COHERENCE (STYLE CONSISTENCY)
-# ==========================================
+
+# COHERENCE
 def calculate_coherence_score(embeddings):
     """
     Calculates how "consistent" the vibe is across items.
@@ -35,16 +34,14 @@ def calculate_coherence_score(embeddings):
     # Average similarity
     return np.mean(similarities)
 
-# ==========================================
-# 2. COLOR HARMONY (VISUAL COMPATIBILITY)
-# ==========================================
+# COLOR HARMONY
 def get_dominant_color(image_path, k=1):
     """Extracts dominant color in HSV format"""
     # Load image
     img = cv2.imread(image_path)
     if img is None: return (0, 0, 0)
     
-    # Convert BGR (OpenCV default) to HSV
+    # Convert BGR to HSV
     img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     
     # Reshape to a list of pixels
@@ -60,7 +57,7 @@ def get_dominant_color(image_path, k=1):
 
 def calculate_color_harmony(image_paths):
     """
-    Scores outfit based on color theory rules (Analogous/Complementary).
+    Scores outfit based on color theory rules (Analogous/Complementary)
     Input: List of file paths to item images
     Output: Score 0.0 to 1.0
     """
@@ -68,30 +65,30 @@ def calculate_color_harmony(image_paths):
     
     if len(colors) < 2: return 1.0
 
-    # Extract Hues (0-179 in OpenCV)
+    # Extract Hues (0-179)
     hues = [c[0] for c in colors]
     saturations = [c[1] for c in colors]
     
     # Calculate Hue Difference between Top and Bottom
-    # We normalize to 360-degree circle (OpenCV uses 0-179, so *2)
+    # Normalize to 360-degree circle (0-179*2)
     hue_top = hues[0] * 2
     hue_bottom = hues[1] * 2
     
     diff = abs(hue_top - hue_bottom)
     if diff > 180: diff = 360 - diff
     
-    # --- COLOR THEORY RULES ---
+    # Color theory rules
     score = 0.5 # Default neutral
     
-    # 1. Monochromatic / Analogous (Similar colors) -> Safe & High Score
+    # Monochromatic / Analogous (Similar colors) -> Safe & High Score
     if diff < 30:
         score = 1.0
         
-    # 2. Complementary (Opposite colors, e.g., Blue & Orange) -> High Score
+    # Complementary (Opposite colors, e.g., Blue & Orange) -> High Score
     elif 150 < diff < 210:
         score = 0.9
         
-    # 3. Triadic/Square (90 degree clashes) -> Often tricky/low score
+    # Triadic/Square (90 degree clashes) -> Often tricky/low score
     elif 80 < diff < 100:
         score = 0.4
         
@@ -101,9 +98,8 @@ def calculate_color_harmony(image_paths):
         
     return score
 
-# ==========================================
-# 3. VISUAL BALANCE (CLUTTER DETECTION)
-# ==========================================
+
+# VISUAL BALANCE
 def get_edge_density(image_path):
     """Calculates 'busyness' of an item using Canny Edge Detection"""
     img = cv2.imread(image_path, 0) # Read as grayscale

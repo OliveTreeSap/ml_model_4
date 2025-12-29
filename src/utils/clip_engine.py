@@ -1,7 +1,8 @@
 import torch
 import clip
-from PIL import Image
 import numpy as np
+from PIL import Image
+
 
 class CLIPEngine:
     def __init__(self, model_name="ViT-B/32"):
@@ -12,18 +13,16 @@ class CLIPEngine:
             model_name (str): The model architecture to use. 
                               Options: 'ViT-B/32', 'ViT-L/14', 'RN50', etc.
         """
-        print(f"⏳ Loading OpenAI CLIP model: {model_name}...")
+        print(f"Loading OpenAI CLIP model: {model_name}")
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
         try:
-            # clip.load returns both the model and the required transform (preprocess)
             self.model, self.preprocess = clip.load(model_name, device=self.device)
             self.model.eval() # Set to evaluation mode
-            print(f"✅ CLIP Loaded successfully on {self.device}")
+            print(f"CLIP Loaded successfully on {self.device}")
         except Exception as e:
-            print(f"❌ Error loading CLIP: {e}")
-            print("💡 Tip: Did you install it? Run: pip install git+https://github.com/openai/CLIP.git")
+            print(f"Error loading CLIP: {e}")
             self.model = None
 
     def get_image_embedding(self, image_source):
@@ -38,21 +37,21 @@ class CLIPEngine:
         if self.model is None:
             return np.zeros(512)
 
-        # 1. Load Image
+        # Load Image
         image = None
         if isinstance(image_source, str):
             try:
                 image = Image.open(image_source).convert("RGB")
             except Exception as e:
-                print(f"❌ Error loading image {image_source}: {e}")
+                print(f"Error loading image {image_source}: {e}")
                 return np.zeros(512)
         elif isinstance(image_source, Image.Image):
             image = image_source.convert("RGB")
         else:
-            print("❌ Invalid image source format")
+            print("Invalid image source format")
             return np.zeros(512)
 
-        # 2. Preprocess & Forward Pass
+        # Preprocess & Forward Pass
         try:
             # Preprocess returns a tensor (3, H, W). We need to unsqueeze to make it a batch (1, 3, H, W).
             image_input = self.preprocess(image).unsqueeze(0).to(self.device)
@@ -60,14 +59,14 @@ class CLIPEngine:
             with torch.no_grad():
                 image_features = self.model.encode_image(image_input)
 
-            # 3. Normalize vector (Critical for Cosine Similarity)
+            # Normalize vector (Critical for Cosine Similarity)
             image_features /= image_features.norm(dim=-1, keepdim=True)
             
             # Convert to flattened numpy array
             return image_features.cpu().numpy()[0]
             
         except Exception as e:
-            print(f"❌ Error during inference: {e}")
+            print(f"Error during inference: {e}")
             return np.zeros(512)
 
     def get_text_embedding(self, text):
@@ -90,11 +89,11 @@ class CLIPEngine:
             return text_features.cpu().numpy()[0]
             
         except Exception as e:
-            print(f"❌ Error extracting text embedding: {e}")
+            print(f"Error extracting text embedding: {e}")
             return np.zeros(512)
 
-# --- Singleton Instance ---
-# Allows importing 'clip_engine' directly elsewhere
+
+# Singleton instance
 try:
     clip_engine = CLIPEngine()
 except Exception:
