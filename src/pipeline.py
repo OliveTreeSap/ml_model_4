@@ -1,109 +1,157 @@
-import numpy as np
 import os
 import glob
 import sys
+import itertools
+import joblib
+import random
+import numpy as np
+
 
 # Adds the src to PATH
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Import our custom modules
-from src.utils.clip_engine import clip_engine
-from src.ml_modules.model_4_ranking import OutfitRanker
+try:
+    from src.utils.clip_engine import clip_engine
+except ImportError:
+    clip_engine = None
+    print("Warning: CLIP Engine not found. Running in simulation mode if needed.")
 
-class Model4TestPipeline:
-    def __init__(self):
+class WardrobePipeline:
+    def __init__(self, model_path='wardrobe_ranker.pkl'):
         """
-        Initializes the Test Pipeline for Model 4.
-        Focuses purely on Wardrobe Loading + Ranking.
+        Initializes the Pipeline.
+        1. Loads the Trained Model in models.
+        2. Loads the Wardrobe Images from data/user/items.
         """
-        print("Initializing Model 4 Test Pipeline")
+        print("Initializing Wardrobe Pipeline")
         
-        # Ensure CLIP is loaded (Needed for Coherence check inside Ranker)
-        if clip_engine is None:
-            raise Exception("CRITICAL: CLIP Engine failed to load.")
-            
-        # Initialize the Ranker (Model 4)
-        self.ranker = OutfitRanker()
-        
+        # Load Trained Model
+        if os.path.exists(model_path):
+            print(f"Loading trained model from {model_path}")
+            self.model = joblib.load(model_path)
+        else:
+            raise FileNotFoundError(f"Model file '{model_path}' not found. Please run 'train_ranker.py' first to generate it")
+
         # Load User's Wardrobe
         self.wardrobe = self._load_wardrobe_database()
-        print(f"Loaded {len(self.wardrobe['top'])} tops, {len(self.wardrobe['bottom'])} bottoms, {len(self.wardrobe['shoes'])} shoes.")
+        print(f"Loaded {len(self.wardrobe['top'])} tops, {len(self.wardrobe['bottom'])} bottoms, {len(self.wardrobe['shoes'])} shoes")
 
     def _load_wardrobe_database(self):
         """
-        Scans data/user/items/ to build a list of available items.
+        Scans data/test/items/ to build a list of available items.
         """
         wardrobe = {'top': [], 'bottom': [], 'shoes': []}
-        base_path = "data/user/items"
+        base_path = "data/test/items"
+        
+        # Ensure directories exist so we don't crash on empty folders
+        for cat in wardrobe.keys():
+            os.makedirs(os.path.join(base_path, cat), exist_ok=True)
         
         for category in wardrobe.keys():
             path = os.path.join(base_path, category, "*.jpg")
             files = glob.glob(path)
             
-            # Test data generator
+            # Mock data generator (if folders are empty)
             if not files: 
-                for i in range(3): # Create 3 mock items per category
+                print(f"No images found in {category}, generating mocks for testing")
+                for i in range(2): 
                     wardrobe[category].append({
                         'id': f"mock_{category}_{i}",
-                        'path': f"mock_path/{category}_{i}.jpg", # Fake path
-                        'embedding': np.random.rand(512) # Fake embedding
+                        'path': f"mock_path/{category}_{i}.jpg", 
                     })
                 continue
 
             for file_path in files:
-                # Perform embedding on the items
-                emb = clip_engine.get_image_embedding(file_path)
+                # If you need embeddings later, you can generate them here:
+                # emb = clip_engine.get_image_embedding(file_path) if clip_engine else None
                 wardrobe[category].append({
                     'id': os.path.basename(file_path),
-                    'path': file_path,
-                    'embedding': emb
+                    'path': file_path
                 })
                 
         return wardrobe
 
-    def run_compatibility_test(self):
+    def extract_features_for_items(self, top, bottom, shoe):
         """
-        Execute Model 4
-        1. Takes all user items.
-        2. Generates combinations.
-        3. Ranks them by Coherence, Color, and Balance.
+        PLACEHOLDER: This is where your real Computer Vision / Metadata logic goes.
+        In a real pipeline, this would load images and run them through your feature extractors.
         """
-        print(f"\n⚡ Running Compatibility Test (Model 4 Only)...")
+        # TODO: Connect this to your actual image analysis code using clip_engine.
+        # For now, we return random values so the pipeline runs for testing.
         
-        # Get All Items (No Filtering by Style)
+        # Simulating values for Style, Coherence, Color, Balance
+        s = random.uniform(0.3, 0.9)
+        c = random.uniform(0.3, 0.9)
+        col = random.uniform(0.3, 0.9)
+        b = random.uniform(0.3, 0.9)
+        return [s, c, col, b]
+
+    def run_ranking(self):
+        """
+        1. Generates combinations.
+        2. Extracts features.
+        3. Ranks using the trained model.
+        """
+        print(f"\n⚡ Running Wardrobe Ranking...")
+        
         tops = self.wardrobe['top']
         bottoms = self.wardrobe['bottom']
         shoes = self.wardrobe['shoes']
         
         if not tops or not bottoms or not shoes:
-            print("Error: Wardrobe is empty. Please add images to 'data/user/items/...'")
+            print("Error: Wardrobe is incomplete (missing categories).")
             return []
 
-        # Rank Outfits
-        ranked_outfits = self.ranker.rank_outfits(
-            tops, 
-            bottoms, 
-            shoes, 
-            target_style_emb=None, # Currently no external style target (not trying to match KOL)
-            top_k=10
-        )
+        ranked_outfits = []
+        
+        # 1. Generate Combinations
+        combinations = list(itertools.product(tops, bottoms, shoes))
+        
+        for outfit in combinations:
+            top, bottom, shoe = outfit
+            
+            # 2. Extract Features (The Real Pipeline Step)
+            features = self.extract_features_for_items(top, bottom, shoe)
+            
+            # 3. Score with Model
+            # Reshape for model: [[f1, f2, f3, f4]]
+            model_input = [features]
+            
+            try:
+                # Get probability of class 1 (Good Outfit)
+                score = self.model.predict_proba(model_input)[0][1]
+            except AttributeError:
+                # Fallback if model doesn't support probability
+                score = float(self.model.predict(model_input)[0])
+            
+            ranked_outfits.append({
+                'items': [top, bottom, shoe],
+                'score': score,
+                'features': features
+            })
+        
+        # 4. Sort by Score (Highest first)
+        ranked_outfits.sort(key=lambda x: x['score'], reverse=True)
         
         return ranked_outfits
 
 
 if __name__ == "__main__":
-    # Start the test pipeline
-    pipeline = Model4TestPipeline()
-    
-    # Run the ranker on the user's items
-    results = pipeline.run_compatibility_test()
-    
-    # Print Results
-    print(f"\nTop {len(results)} Compatible Outfits from User's Closet:")
-    for i, outfit in enumerate(results):
-        print(f"\n#{i+1}: Total Score: {outfit['score']:.4f}")
-        print(f"    Items: {outfit['items'][0]['id']} + {outfit['items'][1]['id']} + {outfit['items'][2]['id']}")
-        print("    [Analysis]:")
-        print(f"      - Coherence (Vibe match):   {outfit['details']['coherence']:.2f}") 
-        print(f"      - Color Harmony (HSV):      {outfit['details']['color']:.2f}")
-        print(f"      - Visual Balance (Clutter): {outfit['details']['balance']:.2f}")
+    try:
+        # Start the pipeline
+        pipeline = WardrobePipeline()
+        
+        # Run ranking
+        results = pipeline.run_ranking()
+        
+        # Print Results
+        print(f"\nTop {min(5, len(results))} Compatible Outfits:")
+        for i, outfit in enumerate(results[:5]):
+            items_ids = [item['id'] for item in outfit['items']]
+            print(f"\n#{i+1}: {' + '.join(items_ids)}")
+            print(f"    Score: {outfit['score']:.4f}")
+            f = outfit['features']
+            print(f"    [Features] Style:{f[0]:.2f}, Coh:{f[1]:.2f}, Color:{f[2]:.2f}, Bal:{f[3]:.2f}")
+            
+    except Exception as e:
+        print(f"\nAn error occurred: {e}")
