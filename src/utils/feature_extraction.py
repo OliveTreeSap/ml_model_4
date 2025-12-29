@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.cluster import KMeans
 from scipy.spatial.distance import cosine
 
+
 """
 FEATURE EXTRACTION MODULE FOR OUTFIT RANKING
 
