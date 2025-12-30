@@ -27,13 +27,14 @@ conda activate ml_model_4
 # Usage
 
 ## Data structure
+```bash
 data/
-└── test/   (your wardrobe)
+└── test/   # your wardrobe
     └── items/
-        ├── top/ (shirts, hoodie, ...)
-        ├── bottom/ (shorts, leggings, ...)
+        ├── top/ # shirts, hoodie, ...
+        ├── bottom/ # shorts, leggings, ...
         └── shoes/
-
+```
 
 ## Run app.py in the terminal
 ```bash
