@@ -40,3 +40,9 @@ data/
 ```bash
 streamlit run app.py
 ```
+
+## In case of libraries errors
+```bash
+# Reinstall libraries using pip instead of conda
+pip install -r requirements.txt
+```
